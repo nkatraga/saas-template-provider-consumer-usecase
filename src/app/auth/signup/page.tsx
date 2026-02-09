@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthLayout from "@/components/AuthLayout";
-import { Button, Input, Card, Alert } from "@/components/ui";
+import { Button, Input, PasswordInput, Card, Alert } from "@/components/ui";
 import { User, Building2, Mail, Phone, Lock } from "lucide-react";
 
 // [Template] — Sign-up page with registration form, role selection, and email verification redirect.
@@ -161,9 +161,8 @@ export default function SignUpPage() {
                 <Lock className="w-3.5 h-3.5" />
                 Password
               </label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 required
                 value={form.password}
                 onChange={(e) =>
@@ -178,9 +177,8 @@ export default function SignUpPage() {
                 <Lock className="w-3.5 h-3.5" />
                 Confirm Password
               </label>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 required
                 value={form.confirmPassword}
                 onChange={(e) =>

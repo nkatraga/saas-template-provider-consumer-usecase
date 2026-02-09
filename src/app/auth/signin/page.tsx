@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AuthLayout from "@/components/AuthLayout";
-import { Button, Input, Card, Alert } from "@/components/ui";
+import { Button, Input, PasswordInput, Card, Alert } from "@/components/ui";
 import { Mail, Lock } from "lucide-react";
 
 // [Template] — Sign-in page with credentials form, error handling, and redirect logic.
@@ -155,9 +155,8 @@ function SignInForm() {
             <Lock className="w-3.5 h-3.5" />
             Password
           </label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}

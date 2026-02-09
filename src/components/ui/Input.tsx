@@ -1,4 +1,5 @@
-import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { forwardRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 // [Template] — Input component with label, error state, and forwardRef support.
 
@@ -73,5 +74,53 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 
 Textarea.displayName = "Textarea";
 
-export { Input, Textarea };
-export type { InputProps, TextareaProps };
+/* ── PasswordInput ───────────────────────────────────── */
+
+interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
+  label?: string;
+  error?: string;
+  helperText?: string;
+}
+
+const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
+  ({ label, error, helperText, className = "", id, ...props }, ref) => {
+    const [visible, setVisible] = useState(false);
+    const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
+    return (
+      <div>
+        {label && (
+          <label htmlFor={inputId} className="block text-sm font-medium text-foreground mb-1">
+            {label}
+          </label>
+        )}
+        <div className="relative">
+          <input
+            ref={ref}
+            id={inputId}
+            type={visible ? "text" : "password"}
+            className={`${inputBase} pr-10 ${error ? "border-danger focus:ring-danger/20 focus:border-danger" : ""} ${className}`}
+            {...props}
+          />
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => setVisible((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+            aria-label={visible ? "Hide password" : "Show password"}
+          >
+            {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        {error && <p className="text-sm text-danger mt-1">{error}</p>}
+        {helperText && !error && (
+          <p className="text-xs text-muted mt-1">{helperText}</p>
+        )}
+      </div>
+    );
+  },
+);
+
+PasswordInput.displayName = "PasswordInput";
+
+export { Input, Textarea, PasswordInput };
+export type { InputProps, TextareaProps, PasswordInputProps };

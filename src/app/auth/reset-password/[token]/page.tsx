@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthLayout from "@/components/AuthLayout";
-import { Button, Input, Card, Alert } from "@/components/ui";
+import { Button, PasswordInput, Card, Alert } from "@/components/ui";
 
 // [Template] — Password reset page. Validates token from URL and accepts new password.
 
@@ -112,9 +112,8 @@ export default function ResetPasswordPage({
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
+              <PasswordInput
                 label="New Password"
-                type="password"
                 required
                 minLength={8}
                 value={password}

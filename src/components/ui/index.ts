@@ -3,8 +3,8 @@
 export { Button } from "./Button";
 export type { ButtonProps } from "./Button";
 
-export { Input, Textarea } from "./Input";
-export type { InputProps, TextareaProps } from "./Input";
+export { Input, Textarea, PasswordInput } from "./Input";
+export type { InputProps, TextareaProps, PasswordInputProps } from "./Input";
 
 export { Card } from "./Card";
 export type { CardProps } from "./Card";

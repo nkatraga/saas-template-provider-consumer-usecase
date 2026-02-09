@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Input, Card, Alert } from "@/components/ui";
+import { Button, PasswordInput, Card, Alert } from "@/components/ui";
 
 // [Template] — Authenticated change-password form. Reusable pattern for any settings page form section.
 
@@ -59,24 +59,21 @@ export default function ChangePasswordSection() {
     <Card>
       <h3 className="text-lg font-semibold mb-4">Change Password</h3>
       <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-        <Input
+        <PasswordInput
           label="Current Password"
-          type="password"
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
           required
         />
-        <Input
+        <PasswordInput
           label="New Password"
-          type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           required
           minLength={8}
         />
-        <Input
+        <PasswordInput
           label="Confirm New Password"
-          type="password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
