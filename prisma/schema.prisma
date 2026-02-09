@@ -1,0 +1,232 @@
+// [Template] — Prisma schema with multi-role auth (User, Account, Session), domain entities, and subscription models.
+// Rename models and fields to match your vertical (e.g., Tutor, Coach, Trainer, etc.)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  passwordHash   String?
+  role           String    // PROVIDER, CONSUMER, PARENT
+  phone          String?
+  preferredContact String  @default("email") // email, phone, both
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+  emailVerified           Boolean   @default(false)
+  emailVerificationToken  String?
+  emailVerificationExpiry DateTime?
+  isAdmin        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Provider-specific
+  providerProfile   Provider?
+  // Consumer-specific (one per provider enrollment)
+  consumerProfiles  Consumer[]
+  // Parent can have multiple consumers
+  parentConsumers   Consumer[] @relation("ParentConsumers")
+
+  invitesSent       Invite[]  @relation("InviteSender")
+  invitesReceived   Invite[]  @relation("InviteRecipient")
+}
+
+// [Template:Domain] — The service provider (tutor, coach, trainer, consultant, etc.)
+model Provider {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  businessName        String   @default("My Business")
+  alias               String?  // Display name shown to consumers
+  profileImageUrl     String?
+  brandLogoUrl        String?  // Cloudinary URL for business logo
+  brandAccentColor    String?  @default("#e8913a") // Hex color for email accent
+  brandFooterText     String?  // Custom footer text for emails
+
+  // Subscription
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  subscriptionStatus     String?   // "active", "past_due", "canceled", "trialing", null
+  subscriptionPlan       String?   // "monthly", "yearly"
+  subscriptionPeriodEnd  DateTime?
+  subscriptionExempt     Boolean   @default(false)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  settings            ProviderSettings?
+  consumers           Consumer[]
+  bookings            Booking[]
+  invites             Invite[]
+}
+
+// [Template:Domain] — Provider-level settings and policies
+model ProviderSettings {
+  id                    String   @id @default(uuid())
+  providerId            String   @unique
+  provider              Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  // What info consumers can see about each other
+  showConsumerNames     Boolean  @default(true)
+  showContactEmail      Boolean  @default(true)
+  showContactPhone      Boolean  @default(false)
+
+  // Exchange rules
+  requireProviderApproval Boolean @default(false)
+  minAdvanceHours       Int      @default(24)     // Minimum hours before booking to request exchange
+  maxAdvanceDays        Int      @default(30)     // How far ahead exchanges can be arranged
+  allowCrossDayExchanges Boolean @default(true)   // Can exchange Mon for Wed, etc.
+  allowDifferentDuration Boolean @default(false)  // Can 30-min exchange with 60-min
+
+  // Reminder settings
+  reminderDayBefore     Boolean  @default(true)
+  reminderHoursBefore   Int      @default(2)
+  reminderEnabled       Boolean  @default(true)
+
+  // Customizable message shown to consumers
+  exchangeInstructions  String   @default("Please contact the other party directly after requesting an exchange. If you both agree, the other party will confirm the exchange on their end.")
+
+  // Business Policies — free text per category
+  paymentPolicy             String?
+  cancellationPolicy        String?
+  makeupPolicy              String?
+  providerCancellationPolicy String?
+  additionalPolicies        String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// [Template:Domain] — A consumer enrolled with a specific provider
+model Consumer {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId    String
+  provider      Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  parentId      String?
+  parent        User?    @relation("ParentConsumers", fields: [parentId], references: [id])
+
+  serviceType     String   @default("General")
+  bookingDuration Int      @default(30) // minutes
+  pricePerUnit    Float?   // Per-booking rate (e.g., 50.00)
+  address         String?  // Consumer's address
+  notes           String?  // Provider's quick notes about this consumer
+  alias           String?  // Display name
+  profileImageUrl String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  bookings       Booking[]
+  exchangesRequested Exchange[] @relation("ExchangeRequester")
+  exchangesReceived  Exchange[] @relation("ExchangeTarget")
+  reminders      Reminder[]
+
+  @@unique([userId, providerId])
+}
+
+// [Template:Domain] — A scheduled booking (appointment, session, lesson, etc.)
+model Booking {
+  id              String   @id @default(uuid())
+  consumerId      String
+  consumer        Consumer @relation(fields: [consumerId], references: [id], onDelete: Cascade)
+  providerId      String
+  provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  startTime       DateTime
+  endTime         DateTime
+
+  status          String   @default("scheduled") // scheduled, exchanged, cancelled, cancel_pending
+  providerNotes   String?
+  consumerNotes   String?
+  cancelledBy         String?   // "PROVIDER" or "CONSUMER"
+  cancellationReason  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  exchangesAsOriginal Exchange[] @relation("OriginalBooking")
+  exchangesAsTarget   Exchange[] @relation("TargetBooking")
+  reminders           Reminder[]
+}
+
+// [Template:Domain] — An exchange request between two consumers' bookings
+model Exchange {
+  id              String   @id @default(uuid())
+  requesterId     String
+  requester       Consumer @relation("ExchangeRequester", fields: [requesterId], references: [id])
+  targetConsumerId String
+  targetConsumer   Consumer @relation("ExchangeTarget", fields: [targetConsumerId], references: [id])
+
+  originalBookingId String
+  originalBooking   Booking @relation("OriginalBooking", fields: [originalBookingId], references: [id])
+  targetBookingId   String
+  targetBooking     Booking @relation("TargetBooking", fields: [targetBookingId], references: [id])
+
+  status          String   @default("pending") // pending, confirmed, declined, cancelled
+  requesterConfirmed Boolean @default(false)
+  targetConfirmed    Boolean @default(false)
+  providerApproved   Boolean?
+
+  message         String?  // Optional message from requester
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// [Template:Domain] — Scheduled reminders for upcoming bookings
+model Reminder {
+  id          String   @id @default(uuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  consumerId  String
+  consumer    Consumer @relation(fields: [consumerId], references: [id], onDelete: Cascade)
+
+  type        String   // day_before, hours_before
+  scheduledFor DateTime
+  sentAt      DateTime?
+  method      String   @default("email") // email, sms (future)
+
+  createdAt   DateTime @default(now())
+}
+
+// [Template] — Global app settings (subscription pricing, limits)
+model AppSettings {
+  id                String   @id @default("singleton")
+  paymentsEnabled   Boolean  @default(false)
+  monthlyPrice      Float    @default(9.99)
+  yearlyPrice       Float    @default(99.99)
+  freeConsumerLimit  Int     @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// [Template] — Invite system for providers to onboard consumers
+model Invite {
+  id          String   @id @default(uuid())
+  providerId  String
+  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User     @relation("InviteSender", fields: [senderId], references: [id])
+
+  recipientEmail String
+  recipientId    String?
+  recipient      User?   @relation("InviteRecipient", fields: [recipientId], references: [id])
+
+  role        String   // CONSUMER, PARENT
+  token       String   @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+}

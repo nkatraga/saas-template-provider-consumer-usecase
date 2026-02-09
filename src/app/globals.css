@@ -1,0 +1,118 @@
+/* [Template] — Design token system using CSS custom properties. Override variables under :root to theme your app. */
+@import "tailwindcss";
+
+
+:root {
+  /* Brand palette — warm orange (from harmony-hub) */
+  --primary: #e8913a;
+  --primary-light: #f0b03d;
+  --primary-dark: #c15415;
+  --primary-50: #fdf8f1;
+  --primary-100: #fcefd9;
+
+  /* Semantic */
+  --accent: #e8913a;
+  --success: #059669;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+
+  /* Surfaces */
+  --background: #fdfbf7;
+  --foreground: #281d15;
+  --surface: #ffffff;
+  --surface-hover: #f8f5f0;
+  --border: #e9e4df;
+  --border-strong: #d6d0c9;
+
+  /* Typography */
+  --font-display: "Times New Roman", Times, serif;
+
+  /* Warm dark — for CTA sections */
+  --warm-dark: #321f13;
+
+  /* Radii — used via var() in components */
+  --ds-radius-sm: 6px;
+  --ds-radius-default: 8px;
+  --ds-radius-lg: 12px;
+  --ds-radius-full: 9999px;
+
+  /* Shadows — used via var() in components */
+  --ds-shadow-sm: 0 1px 2px rgba(40, 29, 21, 0.04);
+  --ds-shadow-default: 0 1px 3px rgba(40, 29, 21, 0.06), 0 1px 2px rgba(40, 29, 21, 0.03);
+  --ds-shadow-md: 0 4px 6px rgba(40, 29, 21, 0.05), 0 2px 4px rgba(40, 29, 21, 0.03);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: #6b5c4f;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Times New Roman', Times, serif;
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+/* TipTap rich text editor */
+.tiptap {
+  min-height: 200px;
+  outline: none;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+.tiptap ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.tiptap ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.tiptap a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.tiptap p {
+  margin: 0.25em 0;
+}
+.tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0.5em 0;
+}
+
+/* Collapsible sections */
+details[open] > summary .chevron-icon {
+  transform: rotate(180deg);
+}
