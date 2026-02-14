@@ -11,12 +11,13 @@ const BUSINESS_POLICIES = [
   { key: "paymentPolicy", label: "Payment Policy" },
   { key: "latePolicy", label: "Late Policy" },
 ];
-import { Button, Input, Card, Badge, Alert, Toggle } from "@/components/ui";
+import { Button, Input, Card, Badge, Alert, Toggle, Select, Textarea } from "@/components/ui";
 import ChangePasswordSection from "@/components/ChangePasswordSection";
+import { MessageSquare } from "lucide-react";
 
 // [Template] — Admin dashboard pattern. Platform-wide management with stats, entity tables, and settings.
 
-type Tab = "providers" | "consumers" | "payments" | "settings";
+type Tab = "providers" | "consumers" | "payments" | "feedback" | "settings";
 
 interface Stats {
   providers: number;
@@ -24,6 +25,7 @@ interface Stats {
   scheduledBookings: number;
   pastBookings: number;
   exchanges: number;
+  openFeedback: number;
 }
 
 interface ProviderRecord {
@@ -81,13 +83,17 @@ function StatsHeader({ stats }: { stats: Stats | null }) {
     { label: "Scheduled", value: stats?.scheduledBookings ?? "—" },
     { label: "Past Bookings", value: stats?.pastBookings ?? "—" },
     { label: "Exchanges", value: stats?.exchanges ?? "—" },
+    { label: "Open Feedback", value: stats?.openFeedback ?? "—", icon: MessageSquare },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-6">
       {cards.map((card) => (
         <Card key={card.label} padding="compact" className="text-center">
-          <div className="text-2xl font-bold text-foreground">{card.value}</div>
+          <div className="flex items-center justify-center gap-1">
+            {"icon" in card && card.icon && <card.icon className="w-4 h-4 text-primary" />}
+            <div className="text-2xl font-bold text-foreground">{card.value}</div>
+          </div>
           <div className="text-xs text-muted mt-1">{card.label}</div>
         </Card>
       ))}
@@ -654,6 +660,223 @@ function SettingsTab({
   );
 }
 
+// ─── Feedback Tab ────────────────────────────────────────
+
+interface FeedbackRow {
+  id: string;
+  userName: string;
+  userEmail: string;
+  category: string;
+  message: string;
+  status: string;
+  adminResponse: string | null;
+  createdAt: string;
+}
+
+function categoryBadgeVariant(category: string): "info" | "danger" | "primary" | "warning" {
+  switch (category) {
+    case "question": return "info";
+    case "bug": return "danger";
+    case "feature_request": return "primary";
+    case "support": return "warning";
+    default: return "info";
+  }
+}
+
+function categoryLabel(category: string): string {
+  switch (category) {
+    case "question": return "Question";
+    case "bug": return "Bug";
+    case "feature_request": return "Feature Request";
+    case "support": return "Support";
+    default: return category;
+  }
+}
+
+function FeedbackTab({ onStatsRefresh }: { onStatsRefresh: () => void }) {
+  const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(true);
+  const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState("");
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState("");
+  const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
+  const [feedbackResponseDraft, setFeedbackResponseDraft] = useState("");
+  const [feedbackStatusUpdating, setFeedbackStatusUpdating] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const fetchFeedback = useCallback(async () => {
+    setFeedbackLoading(true);
+    const params = new URLSearchParams();
+    if (feedbackCategoryFilter) params.set("category", feedbackCategoryFilter);
+    if (feedbackStatusFilter) params.set("status", feedbackStatusFilter);
+    const res = await fetch(`/api/admin/feedback?${params.toString()}`);
+    const data = await res.json();
+    setFeedback(data);
+    setFeedbackLoading(false);
+  }, [feedbackCategoryFilter, feedbackStatusFilter]);
+
+  useEffect(() => {
+    fetchFeedback();
+  }, [fetchFeedback]);
+
+  const handleToggleFeedbackStatus = async (item: FeedbackRow) => {
+    setFeedbackStatusUpdating(true);
+    const newStatus = item.status === "open" ? "resolved" : "open";
+    await fetch(`/api/admin/feedback/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: newStatus,
+        adminResponse: feedbackResponseDraft || item.adminResponse,
+      }),
+    });
+    setFeedbackStatusUpdating(false);
+    setMsg(`Feedback marked as ${newStatus}`);
+    setTimeout(() => setMsg(""), 3000);
+    setFeedbackResponseDraft("");
+    fetchFeedback();
+    onStatsRefresh();
+  };
+
+  const handleSaveResponse = async (item: FeedbackRow) => {
+    setFeedbackStatusUpdating(true);
+    await fetch(`/api/admin/feedback/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: item.status,
+        adminResponse: feedbackResponseDraft,
+      }),
+    });
+    setFeedbackStatusUpdating(false);
+    setMsg("Response saved");
+    setTimeout(() => setMsg(""), 3000);
+    setFeedbackResponseDraft("");
+    fetchFeedback();
+  };
+
+  if (feedbackLoading) return <div className="text-center py-8 text-muted">Loading feedback...</div>;
+
+  return (
+    <div className="space-y-4">
+      {msg && <Alert variant="success">{msg}</Alert>}
+
+      {/* Filters */}
+      <div className="flex gap-3 flex-wrap">
+        <div className="w-48">
+          <Select
+            value={feedbackCategoryFilter}
+            onChange={(e) => setFeedbackCategoryFilter(e.target.value)}
+          >
+            <option value="">All Categories</option>
+            <option value="question">Question</option>
+            <option value="bug">Bug</option>
+            <option value="feature_request">Feature Request</option>
+            <option value="support">Support</option>
+          </Select>
+        </div>
+        <div className="w-40">
+          <Select
+            value={feedbackStatusFilter}
+            onChange={(e) => setFeedbackStatusFilter(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+          </Select>
+        </div>
+      </div>
+
+      {/* Feedback List */}
+      {feedback.length === 0 ? (
+        <p className="text-muted text-center py-8">No feedback found.</p>
+      ) : (
+        feedback.map((item) => (
+          <Card key={item.id} padding="compact">
+            <div
+              className="flex items-start justify-between gap-3 cursor-pointer"
+              onClick={() => {
+                if (selectedFeedback === item.id) {
+                  setSelectedFeedback(null);
+                  setFeedbackResponseDraft("");
+                } else {
+                  setSelectedFeedback(item.id);
+                  setFeedbackResponseDraft(item.adminResponse || "");
+                }
+              }}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-foreground">{item.userName}</span>
+                  <Badge variant={categoryBadgeVariant(item.category)}>
+                    {categoryLabel(item.category)}
+                  </Badge>
+                  <Badge variant={item.status === "open" ? "warning" : "success"}>
+                    {item.status === "open" ? "Open" : "Resolved"}
+                  </Badge>
+                </div>
+                <div className="text-sm text-muted mt-1">{item.userEmail}</div>
+                <div className="text-sm text-foreground mt-1 line-clamp-1">
+                  {item.message}
+                </div>
+                <div className="text-xs text-muted mt-1">
+                  {format(new Date(item.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                </div>
+              </div>
+              <button className="text-xs text-primary hover:text-primary-light px-2 py-1 shrink-0">
+                {selectedFeedback === item.id ? "Collapse" : "Details"}
+              </button>
+            </div>
+
+            {selectedFeedback === item.id && (
+              <div className="mt-4 space-y-3 border-t border-border pt-3">
+                {/* Full message */}
+                <div>
+                  <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1">Full Message</p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap bg-surface-alt rounded-lg p-3">
+                    {item.message}
+                  </p>
+                </div>
+
+                {/* Admin response */}
+                <div>
+                  <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1">Admin Response</p>
+                  <Textarea
+                    value={feedbackResponseDraft}
+                    onChange={(e) => setFeedbackResponseDraft(e.target.value)}
+                    placeholder="Write a response to the user..."
+                    rows={3}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleSaveResponse(item)}
+                    loading={feedbackStatusUpdating}
+                    disabled={!feedbackResponseDraft.trim()}
+                  >
+                    Save Response
+                  </Button>
+                  <Button
+                    variant={item.status === "open" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => handleToggleFeedbackStatus(item)}
+                    loading={feedbackStatusUpdating}
+                  >
+                    {item.status === "open" ? "Mark Resolved" : "Reopen"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ─── Main Admin Dashboard ────────────────────────────────
 function AdminDashboard() {
   const { data: session, status } = useSession();
@@ -705,6 +928,7 @@ function AdminDashboard() {
     { key: "providers", label: "Providers" },
     { key: "consumers", label: "Consumers" },
     { key: "payments", label: "Payments", hidden: !settings?.paymentsEnabled },
+    { key: "feedback", label: "Feedback" },
     { key: "settings", label: "Settings" },
   ];
 
@@ -740,6 +964,7 @@ function AdminDashboard() {
         {activeTab === "providers" && <ProvidersTab />}
         {activeTab === "consumers" && <ConsumersTab />}
         {activeTab === "payments" && <PaymentsTab />}
+        {activeTab === "feedback" && <FeedbackTab onStatsRefresh={fetchStats} />}
         {activeTab === "settings" && (
           <div className="space-y-6">
             <SettingsTab settings={settings} onSettingsChange={fetchSettings} />

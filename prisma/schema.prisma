@@ -36,6 +36,7 @@ model User {
 
   invitesSent       Invite[]  @relation("InviteSender")
   invitesReceived   Invite[]  @relation("InviteRecipient")
+  feedback          Feedback[]
 }
 
 // [Template:Domain] — The service provider (tutor, coach, trainer, consultant, etc.)
@@ -209,6 +210,19 @@ model AppSettings {
   freeConsumerLimit  Int     @default(5)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+// [Template] — User feedback and support tickets
+model Feedback {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      String   // "question", "bug", "feature_request", "support"
+  message       String
+  status        String   @default("open") // "open", "resolved"
+  adminResponse String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // [Template] — Invite system for providers to onboard consumers

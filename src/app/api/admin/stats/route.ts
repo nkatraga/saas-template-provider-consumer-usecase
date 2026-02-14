@@ -9,13 +9,14 @@ export async function GET() {
 
   const now = new Date();
 
-  const [providers, consumers, scheduledBookings, pastBookings, exchanges] = await Promise.all([
+  const [providers, consumers, scheduledBookings, pastBookings, exchanges, openFeedback] = await Promise.all([
     prisma.provider.count({ where: { user: { isAdmin: false } } }),
     prisma.consumer.count(),
     prisma.booking.count({ where: { startTime: { gte: now } } }),
     prisma.booking.count({ where: { startTime: { lt: now } } }),
     prisma.exchange.count(),
+    prisma.feedback.count({ where: { status: "open" } }),
   ]);
 
-  return NextResponse.json({ providers, consumers, scheduledBookings, pastBookings, exchanges });
+  return NextResponse.json({ providers, consumers, scheduledBookings, pastBookings, exchanges, openFeedback });
 }
