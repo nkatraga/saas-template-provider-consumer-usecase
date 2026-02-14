@@ -1,0 +1,14 @@
+appId: com.saastemplate.app
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible: "Sign In"
+- tapOn:
+    id: "email-input"
+- inputText: "test@example.com"
+- tapOn:
+    id: "password-input"
+- inputText: "password123"
+- tapOn: "Sign In"
+- assertVisible: "Home"

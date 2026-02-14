@@ -47,3 +47,8 @@ next-env.d.ts
 # SQLite database
 *.db
 *.db-journal
+
+# Mobile (Expo managed workflow)
+mobile/android/
+mobile/ios/
+mobile/node_modules/

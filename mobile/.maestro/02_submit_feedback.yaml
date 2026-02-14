@@ -1,0 +1,13 @@
+appId: com.saastemplate.app
+---
+- launchApp
+- assertVisible: "Home"
+- tapOn:
+    text: "Settings"
+- tapOn: "Help & Feedback"
+- tapOn: "Bug Report"
+- tapOn:
+    id: "feedback-message"
+- inputText: "Found a bug in the booking flow"
+- tapOn: "Submit"
+- assertVisible: "Feedback submitted"

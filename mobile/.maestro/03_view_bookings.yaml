@@ -1,0 +1,7 @@
+appId: com.saastemplate.app
+---
+- launchApp
+- assertVisible: "Home"
+- tapOn:
+    text: "Bookings"
+- assertVisible: "Bookings"
