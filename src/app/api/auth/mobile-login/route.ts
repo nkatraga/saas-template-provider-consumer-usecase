@@ -67,14 +67,22 @@ export async function POST(req: NextRequest) {
       profileImage,
     };
 
-    const token = await new SignJWT(jwtPayload)
+    const accessToken = await new SignJWT({ ...jwtPayload, type: "access" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(secret);
+
+    const refreshToken = await new SignJWT({ ...jwtPayload, type: "refresh" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("30d")
       .sign(secret);
 
     return NextResponse.json({
-      token,
+      token: accessToken,
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,

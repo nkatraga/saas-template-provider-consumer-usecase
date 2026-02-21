@@ -36,7 +36,12 @@ model User {
 
   invitesSent       Invite[]  @relation("InviteSender")
   invitesReceived   Invite[]  @relation("InviteRecipient")
-  feedback          Feedback[]
+
+  reviews              ProviderReview[]      @relation("ConsumerReviews")
+  enrollmentRequests   EnrollmentRequest[]   @relation("EnrollmentRequests")
+  feedback             Feedback[]
+  expoPushToken        String?
+  defaultViewMode      String    @default("calendar") // "calendar" or "list"
 }
 
 // [Template:Domain] — The service provider (tutor, coach, trainer, consultant, etc.)
@@ -67,6 +72,10 @@ model Provider {
   consumers           Consumer[]
   bookings            Booking[]
   invites             Invite[]
+
+  publicProfile        ProviderPublicProfile?
+  reviews              ProviderReview[]
+  enrollmentRequests   EnrollmentRequest[]
 }
 
 // [Template:Domain] — Provider-level settings and policies
@@ -243,4 +252,63 @@ model Invite {
   acceptedAt  DateTime?
 
   createdAt   DateTime @default(now())
+}
+
+// [Template:Domain] — Provider's public-facing profile for discovery/marketplace
+model ProviderPublicProfile {
+  id                 String   @id @default(uuid())
+  providerId         String   @unique
+  provider           Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  bio                String?
+  philosophy         String?
+  experienceYears    Int?
+  serviceFormats     String[] @default([])
+  rateMin            Float?
+  rateMax            Float?
+  ratePer            String?  @default("session")
+  city               String?
+  state              String?
+  zipCode            String?
+  latitude           Float?
+  longitude          Float?
+  googlePlaceId      String?
+  photos             String[] @default([])
+  isPublished        Boolean  @default(false)
+  slug               String?  @unique
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// [Template:Domain] — Consumer reviews for a provider
+model ProviderReview {
+  id            String   @id @default(uuid())
+  providerId    String
+  provider      Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  consumerUserId String
+  consumerUser   User    @relation("ConsumerReviews", fields: [consumerUserId], references: [id], onDelete: Cascade)
+  rating        Int
+  text          String?
+  isVisible     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([providerId, consumerUserId])
+}
+
+// [Template:Domain] — Enrollment/inquiry requests from prospective consumers
+model EnrollmentRequest {
+  id           String   @id @default(uuid())
+  providerId   String
+  provider     Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?    @relation("EnrollmentRequests", fields: [userId], references: [id], onDelete: SetNull)
+  name         String
+  email        String
+  phone        String?
+  serviceType  String?
+  message      String?
+  status       String   @default("pending")
+  providerNotes String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

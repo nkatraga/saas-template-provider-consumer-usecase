@@ -1,11 +1,20 @@
 // Auth context for the SaaS Template mobile app.
 // Provides login, register, logout, and automatic token restoration on mount.
+// On app start the stored token is validated against the server; if expired
+// the provider attempts a refresh before falling back to logged-out state.
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import * as SecureStore from "expo-secure-store";
-import { api, TOKEN_KEY, ApiError } from "./api";
+import { api, TOKEN_KEY, ApiError, getBaseUrl } from "./api";
 import { API } from "../../../shared/api";
 import type { SessionUser, LoginResponse } from "../../../shared/types";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** SecureStore key for the refresh token. */
+const REFRESH_TOKEN_KEY = "saas_refresh_token";
 
 // ---------------------------------------------------------------------------
 // Context shape
@@ -50,22 +59,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ------- helpers -------
 
-  const storeToken = async (t: string) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, t);
-    setToken(t);
+  const storeToken = async (accessToken: string, refreshToken?: string) => {
+    await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+    setToken(accessToken);
+    if (refreshToken) {
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+    }
   };
 
   const clearToken = async () => {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     setToken(null);
     setUser(null);
+  };
+
+  /**
+   * Attempt to refresh the access token using the stored refresh token.
+   * On success the new tokens are persisted and the user object is returned.
+   * On failure returns null -- the caller should clear the session.
+   */
+  const tryRefreshToken = async (): Promise<SessionUser | null> => {
+    try {
+      const refreshTokenValue = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      if (!refreshTokenValue) return null;
+
+      const baseUrl = getBaseUrl();
+      const res = await fetch(`${baseUrl}/api/auth/mobile/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: refreshTokenValue }),
+      });
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+
+      // Persist the new tokens.
+      const newAccessToken = data.accessToken ?? data.token;
+      const newRefreshToken = data.refreshToken;
+      if (!newAccessToken) return null;
+
+      await storeToken(newAccessToken, newRefreshToken);
+
+      // Fetch the full user profile with the new access token.
+      const meRes = await fetch(`${baseUrl}/api/auth/mobile/me`, {
+        headers: { Authorization: `Bearer ${newAccessToken}` },
+      });
+
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        return meData.user ?? meData;
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
   };
 
   // ------- public methods -------
 
   const login = useCallback(async (email: string, password: string) => {
-    const data = await api.post<LoginResponse>(API.login, { email, password });
-    await storeToken(data.token);
+    const data = await api.post<LoginResponse & { refreshToken?: string }>(
+      API.login,
+      { email, password },
+    );
+    // The server may return the access token as `token` or `accessToken`.
+    const accessToken = (data as any).accessToken ?? data.token;
+    await storeToken(accessToken, data.refreshToken);
     setUser(data.user);
   }, []);
 
@@ -82,13 +144,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      // For consumers, use consumer profile endpoint; for providers use provider profile
-      const profile = await api.get<SessionUser>(API.userProfile);
+      const profile = await api.get<SessionUser>("/api/auth/mobile/me");
       setUser(profile);
     } catch (err) {
-      // If the token has become invalid, clean up.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        await clearToken();
+        // Token may have expired -- attempt a refresh.
+        const refreshedUser = await tryRefreshToken();
+        if (refreshedUser) {
+          setUser(refreshedUser);
+        } else {
+          await clearToken();
+        }
       }
     }
   }, []);
@@ -108,30 +174,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Optimistically set the token so that api.get uses it.
         setToken(stored);
 
-        // Validate the token by fetching the user profile.
-        // We use the login endpoint to verify, but since we already have a
-        // token we just parse the JWT client-side for basic user info.
-        // The full profile can be fetched separately.
-        // For now, decode the JWT payload to get user info.
-        const parts = stored.split(".");
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
+        // Validate the token by calling the /me endpoint on the server.
+        const baseUrl = getBaseUrl();
+        const meRes = await fetch(`${baseUrl}/api/auth/mobile/me`, {
+          headers: { Authorization: `Bearer ${stored}` },
+        });
+
+        if (meRes.ok) {
+          const meData = await meRes.json();
           if (!cancelled) {
-            setUser({
-              id: payload.sub,
-              email: payload.email,
-              name: payload.name,
-              role: payload.role,
-              isAdmin: payload.isAdmin ?? false,
-              providerId: payload.providerId ?? null,
-              consumerIds: payload.consumerIds ?? [],
-              profileImage: payload.profileImage ?? null,
-            });
+            setUser(meData.user ?? meData);
+          }
+        } else if (meRes.status === 401) {
+          // Access token is expired / invalid -- try to refresh.
+          const refreshedUser = await tryRefreshToken();
+          if (refreshedUser) {
+            if (!cancelled) {
+              setUser(refreshedUser);
+            }
+          } else {
+            // Refresh failed -- clear everything.
+            await SecureStore.deleteItemAsync(TOKEN_KEY);
+            await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+            if (!cancelled) {
+              setToken(null);
+              setUser(null);
+            }
+          }
+        } else {
+          // Some other error (network, 500, etc.) -- fall back to JWT decode
+          // so the app is still usable offline with cached data.
+          const parts = stored.split(".");
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            if (!cancelled) {
+              setUser({
+                id: payload.sub,
+                email: payload.email,
+                name: payload.name,
+                role: payload.role,
+                isAdmin: payload.isAdmin ?? false,
+                providerId: payload.providerId ?? null,
+                consumerIds: payload.consumerIds ?? [],
+                profileImage: payload.profileImage ?? null,
+              });
+            }
           }
         }
       } catch {
         // Token is expired / invalid -- clear it.
         await SecureStore.deleteItemAsync(TOKEN_KEY);
+        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
         if (!cancelled) {
           setToken(null);
           setUser(null);

@@ -29,3 +29,6 @@ export type { CollapsibleProps } from "./Collapsible";
 
 export { Select } from "./Select";
 export type { SelectProps } from "./Select";
+
+export { StarRating } from "./StarRating";
+export type { StarRatingProps } from "./StarRating";

@@ -1,3 +1,5 @@
+"use client";
+
 import { forwardRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
